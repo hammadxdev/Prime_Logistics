@@ -19,8 +19,8 @@ import {
   Check,
 } from "lucide-react";
 
-// Use the environment variable if it exists, otherwise fall back to localhost
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
+// Use the environment variable VITE_API_URL if it exists, otherwise fall back to localhost
+const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 /* --- TOAST COMPONENT --- */
 const Toast = ({ message, type, onClose }) => {
