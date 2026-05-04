@@ -23,6 +23,18 @@ const SMTP_DEBUG = String(process.env.SMTP_DEBUG || "").toLowerCase() === "true"
 const SMTP_SECURE = SMTP_PORT === 465;
 
 const app = express();
+
+// --- REQUEST LOGGING MIDDLEWARE ---
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// --- ERROR LOGGING MIDDLEWARE ---
+app.use((err, req, res, next) => {
+  console.error(`[${new Date().toISOString()}] ERROR:`, err.stack || err);
+  res.status(500).json({ success: false, error: 'Internal Server Error' });
+});
 // --- CORS CONFIGURATION ---
 // Allow ALL origins (simplest fix to ensure it works)
 app.use(
