@@ -3,6 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
+import SibApiV3Sdk from "sib-api-v3-sdk";
 import PDFDocument from "pdfkit";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -46,24 +47,21 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-const transporter = nodemailer.createTransport({
-  host: SMTP_HOST,
-  port: SMTP_PORT,
-  secure: SMTP_SECURE,
-  auth: {
-    user: SMTP_USER,
-    pass: SMTP_PASS,
-  },
-  tls: {
-    rejectUnauthorized: false,
-  },
-  logger: SMTP_DEBUG,
-  debug: SMTP_DEBUG,
-});
 
-transporter.verify().catch((err) => {
-  console.error("SMTP VERIFY FAILED:", err.message);
-});
+// --- BREVO API EMAIL SENDER ---
+const sendEmailBrevo = async ({ to, subject, html }) => {
+  const apiKey = process.env.BREVO_SMTP_KEY;
+  if (!apiKey) throw new Error("Missing BREVO_SMTP_KEY");
+  SibApiV3Sdk.ApiClient.instance.authentications["api-key"].apiKey = apiKey;
+  const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+  const sendSmtpEmail = new SibApiV3Sdk.SendSmtpEmail();
+  sendSmtpEmail.subject = subject;
+  sendSmtpEmail.htmlContent = html;
+  sendSmtpEmail.sender = { name: "Prime Move Logistics LLC Dispatch", email: process.env.ADMIN_EMAIL };
+  sendSmtpEmail.to = [{ email: to }];
+  // You can add attachments if needed using sendSmtpEmail.attachment
+  await apiInstance.sendTransacEmail(sendSmtpEmail);
+};
 
 app.get("/", (req, res) =>
   res.send("Prime Move Logistics LLC Backend Running"),
@@ -125,14 +123,14 @@ app.post("/api/generate-link", async (req, res) => {
       vehicleString = `<li>${req.body.vehicleYear} ${req.body.vehicleMake} ${req.body.vehicleModel}</li>`;
     }
 
+    // --- Use Brevo API for production ---
     try {
-      await transporter.sendMail({
-        from: `"Prime Move Logistics LLC Dispatch" <${ADMIN_EMAIL}>`,
+      await sendEmailBrevo({
         to: req.body.customerEmail,
         subject: `ACTION REQUIRED: Transport Order #${payload.orderNumber}`,
         html: `
             <div style="text-align:center; margin-bottom:24px;">
-              <img src="cid:companylogo" alt="Prime Move Logistics LLC Logo" style="max-width:220px; margin-bottom:16px;" />
+              <b>Prime Move Logistics LLC</b>
             </div>
             <h3>Hello ${req.body.customerName},</h3>
             <p>Your auto transport order is ready for review.</p>
@@ -143,13 +141,6 @@ app.post("/api/generate-link", async (req, res) => {
             <p>Please click the link below to review the terms, fill in your pickup/delivery details, and sign:</p>
             <p><a href="${signingLink}" style="padding: 12px 20px; background: #0f172a; color: white; text-decoration: none; border-radius: 5px;">Review & Sign Order</a></p>
         `,
-        attachments: [
-          {
-            filename: "logo.png",
-            path: logoPath,
-            cid: "companylogo",
-          },
-        ],
       });
     } catch (emailError) {
       console.error("EMAIL ERROR:", emailError.message);
