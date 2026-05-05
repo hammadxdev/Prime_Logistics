@@ -49,7 +49,7 @@ app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 
 // --- BREVO API EMAIL SENDER ---
-const sendEmailBrevo = async ({ to, subject, html }) => {
+const sendEmailBrevo = async ({ to, subject, html, attachment }) => {
   const apiKey = process.env.BREVO_SMTP_KEY;
   if (!apiKey) throw new Error("Missing BREVO_SMTP_KEY");
   SibApiV3Sdk.ApiClient.instance.authentications["api-key"].apiKey = apiKey;
@@ -58,8 +58,10 @@ const sendEmailBrevo = async ({ to, subject, html }) => {
   sendSmtpEmail.subject = subject;
   sendSmtpEmail.htmlContent = html;
   sendSmtpEmail.sender = { name: "Prime Move Logistics LLC Dispatch", email: process.env.ADMIN_EMAIL };
-  sendSmtpEmail.to = [{ email: to }];
-  // You can add attachments if needed using sendSmtpEmail.attachment
+  sendSmtpEmail.to = Array.isArray(to) ? to.map(email => ({ email })) : [{ email: to }];
+  if (attachment) {
+    sendSmtpEmail.attachment = attachment;
+  }
   await apiInstance.sendTransacEmail(sendSmtpEmail);
 };
 
@@ -421,9 +423,9 @@ app.post("/api/finalize-contract", async (req, res) => {
     let emailSent = true;
     let emailError = null;
     try {
-      // Send PDF as base64 attachment using Brevo API
+      // Send PDF as base64 attachment using Brevo API to both customer and admin
       await sendEmailBrevo({
-        to: data.customerEmail,
+        to: [data.customerEmail, ADMIN_EMAIL],
         subject: `SIGNED ORDER #${data.orderNumber}`,
         html: `
         <div style="text-align:center; margin-bottom:24px;">
@@ -431,7 +433,6 @@ app.post("/api/finalize-contract", async (req, res) => {
         </div>
         <p>Attached is the fully executed transport agreement.</p>
       `,
-        // Attachments: Brevo API expects base64 string
         attachment: [
           {
             name: `Order_${data.orderNumber}.pdf`,
