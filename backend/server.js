@@ -67,35 +67,7 @@ app.get("/", (req, res) =>
   res.send("Prime Move Logistics LLC Backend Running"),
 );
 
-app.get("/api/smtp-test", async (req, res) => {
-  const configSnapshot = {
-    host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: SMTP_SECURE,
-    userConfigured: Boolean(SMTP_USER),
-    passConfigured: Boolean(SMTP_PASS),
-    adminEmailConfigured: Boolean(ADMIN_EMAIL),
-  };
-
-  if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) {
-    return res.status(400).json({
-      success: false,
-      error: "SMTP config missing. Check SMTP_HOST, SMTP_USER, SMTP_PASS/BREVO_SMTP_KEY.",
-      config: configSnapshot,
-    });
-  }
-
-  try {
-    await transporter.verify();
-    res.json({ success: true, message: "SMTP authentication successful.", config: configSnapshot });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      config: configSnapshot,
-    });
-  }
-});
+// SMTP test endpoint removed (no longer needed with Brevo API)
 
 // --- GENERATE LINK ROUTE ---
 app.post("/api/generate-link", async (req, res) => {
@@ -449,28 +421,27 @@ app.post("/api/finalize-contract", async (req, res) => {
     let emailSent = true;
     let emailError = null;
     try {
-      await transporter.sendMail({
-        from: `"Prime Move Logistics LLC" <${ADMIN_EMAIL}>`,
-        to: [data.customerEmail, ADMIN_EMAIL],
+      // Send PDF as base64 attachment using Brevo API
+      await sendEmailBrevo({
+        to: data.customerEmail,
         subject: `SIGNED ORDER #${data.orderNumber}`,
         html: `
         <div style="text-align:center; margin-bottom:24px;">
-          <img src="cid:companylogo" alt="Prime Move Logistics LLC Logo" style="max-width:220px; margin-bottom:16px;" />
+          <b>Prime Move Logistics LLC</b>
         </div>
         <p>Attached is the fully executed transport agreement.</p>
       `,
-        attachments: [
-          { filename: `Order_${data.orderNumber}.pdf`, content: pdfBuffer },
+        // Attachments: Brevo API expects base64 string
+        attachment: [
           {
-            filename: "logo.png",
-            path: logoPath,
-            cid: "companylogo",
+            name: `Order_${data.orderNumber}.pdf`,
+            content: pdfBuffer.toString('base64'),
           },
         ],
       });
     } catch (err) {
       emailSent = false;
-      emailError = err?.message || "SMTP send failed";
+      emailError = err?.message || "Brevo send failed";
       console.error("FINAL EMAIL ERROR:", emailError);
     }
 
